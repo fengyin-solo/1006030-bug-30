@@ -66,6 +66,10 @@ npm run build
 - 每个模块的页面在 `frontend/src/views/<模块>/index.vue`，页面只负责渲染，读写统一走
   `frontend/src/api/local-service.ts`。
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
-  `frontend/src/data/seed.ts`。
+  `frontend/src/data/seed.ts`。动作允许的发起状态登记在 `actionSources` 里，登记了就强制校验，
+  跨级流转直接驳回。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
+- 客舱清洁的「质检退回」是一笔整体回落：状态、用水量、耗材领用与保障班组的领用台账在同一笔
+  写入里一起退（`saveModuleRows` 多模块落盘），扣减量以作业记录上的挂账快照为准，重复退回
+  不会反复扣。
 - 想回到初始数据：清掉浏览器里 `airport-ground-ops:entries` 这一项，或调用 `resetModule(模块)`。

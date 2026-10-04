@@ -17,6 +17,8 @@ export type ModuleMeta = {
   statuses: string[]
   actions: string[]
   actionTargets: Record<string, string>
+  // 动作允许的发起状态：登记了就强制校验，跨级流转直接驳回；没登记的模块保持原样。
+  actionSources?: Record<string, string>
   metrics: string[]
 }
 

@@ -83,7 +83,7 @@ import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('cabin')
 const columns = ["作业编号", "航班号", "清洁班组", "作业项数", "用水量", "耗材领用", "质检人员", "作业状态"]
-const actions = ["开始清洁", "提交质检", "确认完成"]
+const actions = ["开始清洁", "提交质检", "质检退回", "确认完成"]
 const statuses = ["待清洁", "清洁中", "待质检", "已完成"]
 const stats = [{"label": "今日清洁架次", "value": 0}, {"label": "清洁中作业", "value": 0}, {"label": "待质检作业", "value": 0}]
 

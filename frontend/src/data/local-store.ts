@@ -40,12 +40,18 @@ export function listRows(key: string): EntryRow[] {
   return allRows()[key] ?? []
 }
 
-export function saveRows(key: string, rows: EntryRow[]): void {
-  const next = { ...allRows(), [key]: rows }
+// 一次写入多个模块：同一份数据在多个入口被读写，跨模块的派生数据必须整笔落盘，
+// 要么一起生效要么一起不生效，不允许只写一半。
+export function saveModuleRows(entries: Record<string, EntryRow[]>): void {
+  const next = { ...allRows(), ...entries }
   cache = next
   if (typeof window !== 'undefined' && window.localStorage) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   }
+}
+
+export function saveRows(key: string, rows: EntryRow[]): void {
+  saveModuleRows({ [key]: rows })
 }
 
 export function resetRows(key: string): EntryRow[] {
