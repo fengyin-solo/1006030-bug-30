@@ -47,7 +47,7 @@
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
-              v-for="action in actions"
+              v-for="action in actionsFor(row)"
               :key="action"
               class="link"
               type="button"
@@ -77,21 +77,50 @@ import {
   downloadEntries,
   listEntries,
   moduleMeta,
+  reconcileLedger,
   runAction as applyAction,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('cabin')
 const columns = ["作业编号", "航班号", "清洁班组", "作业项数", "用水量", "耗材领用", "质检人员", "作业状态"]
-const actions = ["开始清洁", "提交质检", "确认完成"]
 const statuses = ["待清洁", "清洁中", "待质检", "已完成"]
-const stats = [{"label": "今日清洁架次", "value": 0}, {"label": "清洁中作业", "value": 0}, {"label": "待质检作业", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+
+// 每行只给当前状态允许的动作：待质检之前不出现「确认完成」，
+// 只有待质检的作业才给「质检退回」，跨级操作在页面上就没有入口。
+const ACTIONS_BY_STATUS: Record<string, string[]> = {
+  "待清洁": ["开始清洁"],
+  "清洁中": ["提交质检"],
+  "待质检": ["质检退回", "确认完成"],
+  "已完成": [],
+}
+
+function actionsFor(row: EntryRow): string[] {
+  return ACTIONS_BY_STATUS[String(row.status)] ?? []
+}
+
+// 统计卡直接取数：架次看作业表，领用/用水看班组领用清单（只计挂账，退回后不残留）。
+const stats = computed(() => {
+  const ledger = reconcileLedger()
+  const cleaning = rows.value.filter((row) => String(row.status) === '清洁中').length
+  const pendingQc = rows.value.filter((row) => String(row.status) === '待质检').length
+  const materials = ledger.teamStats.reduce((sum, item) => sum + item.领用合计, 0)
+  const water = ledger.teamStats.reduce((sum, item) => sum + item.用水合计, 0)
+  return [
+    { label: '今日清洁架次', value: rows.value.length },
+    { label: '清洁中作业', value: cleaning },
+    { label: '待质检作业', value: pendingQc },
+    { label: '班组挂账耗材', value: materials },
+    { label: '班组挂账用水', value: water },
+  ]
+})
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -125,6 +154,8 @@ function runAction(action: string, row: EntryRow) {
 function reload() {
   errorMessage.value = ''
   try {
+    // 读取前先按作业记录对账台账：重复条目去重、退回残留冲减、无主挂账清除。
+    reconcileLedger()
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total

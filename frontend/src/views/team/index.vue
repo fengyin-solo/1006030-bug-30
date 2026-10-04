@@ -63,6 +63,42 @@
       </tbody>
     </table>
 
+    <section class="ledger-block">
+      <header class="ledger-head">
+        <h3>保障班组领用清单</h3>
+        <p class="page-desc">以客舱清洁作业记录为准：提交质检时按作业编号落账，质检退回整条冲减；重复条目自动去重。</p>
+      </header>
+
+      <div class="stat-row">
+        <article v-for="item in teamStats" :key="item.清洁班组" class="stat-card">
+          <span class="stat-label">{{ item.清洁班组 }} · 挂账{{ item.挂账笔数 }}笔</span>
+          <strong class="stat-value">耗材 {{ item.领用合计 }} / 用水 {{ item.用水合计 }}</strong>
+        </article>
+        <article v-if="!teamStats.length" class="stat-card">
+          <span class="stat-label">当前无挂账领用</span>
+          <strong class="stat-value">—</strong>
+        </article>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th v-for="column in ledgerColumns" :key="column">{{ column }}</th>
+            <th>台账状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in ledgerItems" :key="`${item.作业编号}-${item.id}`">
+            <td v-for="column in ledgerColumns" :key="column">{{ item[column] ?? '—' }}</td>
+            <td :class="{ 'error-text': item.status === '已退回' }">{{ item.status }}</td>
+          </tr>
+          <tr v-if="!ledgerItems.length">
+            <td :colspan="ledgerColumns.length + 1" class="empty-state">暂无领用记录</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <footer class="page-foot">
       <span>共 {{ total }} 条保障班组记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
@@ -77,21 +113,26 @@ import {
   downloadEntries,
   listEntries,
   moduleMeta,
+  reconcileLedger,
   runAction as applyAction,
 } from '@/api/local-service'
-import type { EntryRow } from '@/data/types'
+import type { EntryRow, LedgerRow, TeamLedgerStat } from '@/data/types'
 
 const meta = moduleMeta('team')
 const columns = ["班组编号", "班组名称", "负责区域", "在岗人数", "班次时段", "带班人员", "轮休安排", "班组状态"]
 const actions = ["确认在岗", "安排轮休", "提交培训"]
 const statuses = ["在岗", "轮休", "培训中", "已解散"]
 const stats = [{"label": "在册班组", "value": 0}, {"label": "在岗班组", "value": 0}, {"label": "轮休班组", "value": 0}]
+const ledgerColumns = ["作业编号", "航班号", "清洁班组", "耗材领用", "用水量", "最近时间"]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const ledgerItems = ref<LedgerRow[]>([])
+const teamStats = ref<TeamLedgerStat[]>([])
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,6 +169,10 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    // 领用清单按清洁作业记录对账后展示：退回的作业在这里是「已退回、不计统计」。
+    const ledger = reconcileLedger()
+    ledgerItems.value = ledger.items
+    teamStats.value = ledger.teamStats
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '保障班组列表读取失败'
   }
